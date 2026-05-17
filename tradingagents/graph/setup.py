@@ -1,5 +1,8 @@
 # TradingAgents/graph/setup.py
 
+# Import 
+import logging
+import time
 from typing import Any, Dict
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -8,6 +11,17 @@ from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
 
 from .conditional_logic import ConditionalLogic
+
+logger = logging.getLogger(__name__)
+
+
+def delay_agent(node_fn, name):
+    def wrapped_node(state):
+        result = node_fn(state)
+        logger.info(f"Agent '{name}' finished talking. Sleeping for 5 seconds to manage quota...")
+        time.sleep(5)
+        return result
+    return wrapped_node
 
 
 class GraphSetup:
@@ -95,21 +109,22 @@ class GraphSetup:
 
         # Add analyst nodes to the graph
         for analyst_type, node in analyst_nodes.items():
-            workflow.add_node(f"{analyst_type.capitalize()} Analyst", node)
+            agent_name = f"{analyst_type.capitalize()} Analyst"
+            workflow.add_node(agent_name, delay_agent(node, agent_name))
             workflow.add_node(
                 f"Msg Clear {analyst_type.capitalize()}", delete_nodes[analyst_type]
             )
             workflow.add_node(f"tools_{analyst_type}", tool_nodes[analyst_type])
 
-        # Add other nodes
-        workflow.add_node("Bull Researcher", bull_researcher_node)
-        workflow.add_node("Bear Researcher", bear_researcher_node)
-        workflow.add_node("Research Manager", research_manager_node)
-        workflow.add_node("Trader", trader_node)
-        workflow.add_node("Aggressive Analyst", aggressive_analyst)
-        workflow.add_node("Neutral Analyst", neutral_analyst)
-        workflow.add_node("Conservative Analyst", conservative_analyst)
-        workflow.add_node("Portfolio Manager", portfolio_manager_node)
+        # Add other nodes and delay them
+        workflow.add_node("Bull Researcher", delay_agent(bull_researcher_node, "Bull Researcher"))
+        workflow.add_node("Bear Researcher", delay_agent(bear_researcher_node, "Bear Researcher"))
+        workflow.add_node("Research Manager", delay_agent(research_manager_node, "Research Manager"))
+        workflow.add_node("Trader", delay_agent(trader_node, "Trader"))
+        workflow.add_node("Aggressive Analyst", delay_agent(aggressive_analyst, "Aggressive Analyst"))
+        workflow.add_node("Neutral Analyst", delay_agent(neutral_analyst, "Neutral Analyst"))
+        workflow.add_node("Conservative Analyst", delay_agent(conservative_analyst, "Conservative Analyst"))
+        workflow.add_node("Portfolio Manager", delay_agent(portfolio_manager_node, "Portfolio Manager"))
 
         # Define edges
         # Start with the first analyst
